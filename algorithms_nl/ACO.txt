@@ -1,0 +1,507 @@
+.1 Generic ACO Framework
+pgsql
+Copy
+procedure ACO_MetaHeuristic is  
+  while not termination_condition do  
+    construct_solutions()           ⟵ each ant probabilistically builds a solution  
+    apply_daemon_actions()          ⟵ optional global actions (e.g., local search)  
+    update_pheromones()             ⟵ evaporation + pheromone deposition  
+  end while  
+end procedure  
+Edge‑selection probability for ant k moving from state x to y:
+
+𝑝
+𝑥
+𝑦
+𝑘
+=
+(
+𝜏
+𝑥
+𝑦
+)
+𝛼
+ 
+(
+𝜂
+𝑥
+𝑦
+)
+𝛽
+∑
+𝑧
+∈
+a
+l
+l
+o
+w
+e
+d
+𝑥
+(
+𝜏
+𝑥
+𝑧
+)
+𝛼
+ 
+(
+𝜂
+𝑥
+𝑧
+)
+𝛽
+p 
+xy
+k
+​
+ = 
+∑ 
+z∈allowed 
+x
+​
+ 
+​
+ (τ 
+xz
+​
+ ) 
+α
+ (η 
+xz
+​
+ ) 
+β
+ 
+(τ 
+xy
+​
+ ) 
+α
+ (η 
+xy
+​
+ ) 
+β
+ 
+​
+ 
+Global pheromone update (after all ants complete tours):
+
+𝜏
+𝑥
+𝑦
+←
+(
+1
+−
+𝜌
+)
+ 
+𝜏
+𝑥
+𝑦
++
+∑
+𝑘
+=
+1
+𝑚
+Δ
+𝜏
+𝑥
+𝑦
+𝑘
+,
+Δ
+𝜏
+𝑥
+𝑦
+𝑘
+=
+{
+𝑄
+/
+𝐿
+𝑘
+,
+if ant 
+𝑘
+ used 
+𝑥
+𝑦
+,
+0
+,
+otherwise.
+τ 
+xy
+​
+ ←(1−ρ)τ 
+xy
+​
+ + 
+k=1
+∑
+m
+​
+ Δτ 
+xy
+k
+​
+ ,Δτ 
+xy
+k
+​
+ ={ 
+Q/L 
+k
+​
+ ,
+0,
+​
+  
+if ant k used xy,
+otherwise.
+​
+ https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+Ant System (AS)
+
+Initialize τ_ij = τ0 for all edges (i,j)  
+for iteration = 1 to MaxIter do  
+  for each ant k = 1 to m do  
+    place ant k on a start node  
+    for step = 1 to n do  
+      choose next node j ∈ allowed_k using p^k_{ij}  
+      move ant k to j  
+    end for  
+    compute tour length L_k  
+  end for  
+  for all edges (i,j) do  
+    τ_ij = (1–ρ)·τ_ij + ∑_{k=1}^m Δτ^k_{ij}  
+  end for  
+end for  
+return best tour found  
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+https://www.stratio.com/blog/swarm-intelligence-metaheuristics-part-1-ant-colony-optimization/?utm_source=chatgpt.com
+# ================================================================================================================================
+
+2.2 Elitist Ant System (EAS)
+Identical to AS, but after the standard update adds extra pheromone from the global best tour:
+
+𝜏
+𝑖
+𝑗
+←
+(
+1
+−
+𝜌
+)
+ 
+𝜏
+𝑖
+𝑗
++
+∑
+𝑘
+=
+1
+𝑚
+Δ
+𝜏
+𝑖
+𝑗
+𝑘
++
+𝑒
+ 
+Δ
+𝜏
+𝑖
+𝑗
+best
+,
+τ 
+ij
+​
+ ←(1−ρ)τ 
+ij
+​
+ + 
+k=1
+∑
+m
+​
+ Δτ 
+ij
+k
+​
+ +eΔτ 
+ij
+best
+​
+ ,
+where e is the elitist weight.
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+Rank‑based Ant System (RAS)
+Ranks all m ants by tour length; only the top w ants deposit pheromone, weighted by rank:
+
+𝜏
+𝑖
+𝑗
+←
+(
+1
+−
+𝜌
+)
+ 
+𝜏
+𝑖
+𝑗
++
+∑
+𝑟
+=
+1
+𝑤
+(
+𝑤
+−
+𝑟
++
+1
+)
+ 
+Δ
+𝜏
+𝑖
+𝑗
+(
+𝑟
+)
+,
+τ 
+ij
+​
+ ←(1−ρ)τ 
+ij
+​
+ + 
+r=1
+∑
+w
+​
+ (w−r+1)Δτ 
+ij
+(r)
+​
+ ,
+where 
+Δ
+𝜏
+𝑖
+𝑗
+(
+𝑟
+)
+Δτ 
+ij
+(r)
+​
+  is the deposit of the r-th best ant.
+Wikipedia
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+Advanced Discrete ACO Variants
+3.1 Ant Colony System (ACS)
+
+Decision rule: for ant k at node i, generate q∼U(0,1):
+if q ≤ q0 then  
+  j = argmax_{u∈allowed_k} (τ_{iu})·(η_{iu})^β        ⟵ exploitation  
+else  
+  select j probabilistically via p^k_{iu}             ⟵ exploration  
+end if  
+
+Local update (after each move):
+
+𝜏
+𝑖
+𝑗
+←
+(
+1
+−
+𝜙
+)
+ 
+𝜏
+𝑖
+𝑗
++
+𝜙
+ 
+𝜏
+0
+.
+τ 
+ij
+​
+ ←(1−ϕ)τ 
+ij
+​
+ +ϕτ 
+0
+​
+ .
+Global update (only best ant deposits):
+
+𝜏
+𝑖
+𝑗
+←
+(
+1
+−
+𝜌
+)
+ 
+𝜏
+𝑖
+𝑗
++
+𝜌
+ 
+Δ
+𝜏
+𝑖
+𝑗
+best
+.
+τ 
+ij
+​
+ ←(1−ρ)τ 
+ij
+​
+ +ρΔτ 
+ij
+best
+​
+ .
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+https://mat.uab.cat/~alseda/MasterOpt/ACO_Intro.pdf?utm_source=chatgpt.com
+# ================================================================================================================================
+.2 Max‑Min Ant System (MMAS)
+Only the best (global or iteration) ant updates pheromone.
+
+Pheromone limits: 
+𝜏
+min
+⁡
+≤
+𝜏
+𝑖
+𝑗
+≤
+𝜏
+max
+⁡
+τ 
+min
+​
+ ≤τ 
+ij
+​
+ ≤τ 
+max
+​
+ .
+
+All τ_ij initialized to τ_max to encourage exploration.
+
+Trail reinitialization when stagnation is detected.
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+4. Specialized ACO Extensions
+4.1 Parallel Ant Colony Optimization (PACO)
+Partitions ants into sub‑colonies with inter‑colony pheromone communication strategies (e.g., sharing best tours at set intervals).
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+4.2 Continuous Orthogonal ACO (COAC)
+Uses orthogonal experimental design to guide continuous search regions, adapting radius and pheromone in real‑valued domains.
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+4.3 Recursive ACO
+Divides the search space into subdomains, applies ACO recursively to each, and promotes the best subdomain solutions to deeper levels until precision criteria are met.
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+
+5. Continuous‑domain ACO Variants
+5.1 Ant Colony Optimization for Continuous Domains (ACOR)
+Implements an estimation‑of‑distribution approach:
+
+Maintain an archive of solutions.
+
+Sample new solutions from a Gaussian kernel mixture built on the archive.
+
+Update archive with the best new solutions.
+for t = 1 to MaxIter do  
+  for each ant k do  
+    select a kernel from archive with probability ∝ weight_k  
+    sample x_k from N(μ_k, σ_k^2)  
+    evaluate f(x_k)  
+  end for  
+  update archive with best solutions  
+end for  
+
+https://www.mathworks.com/matlabcentral/fileexchange/52860-ant-colony-optimization-for-continuous-domains-acor?utm_source=chatgpt.com
+# ================================================================================================================================
+
+5.2 Adaptive Greedy ACO (GSACO)
+Dynamically adjusts pheromone and heuristic parameters via a greedy strategy to balance exploration/exploitation and accelerate convergence:
+
+after each iteration:  
+  adjust α, β, ρ based on improvement percentage  
+  apply standard pheromone update with new parameters  
+
+
+https://link.springer.com/article/10.1007/s12652-021-03120-0?utm_source=chatgpt.com
+# ================================================================================================================================
+
+Multi‑objective ACO (MOACO): integrates Pareto‑optimality into pheromone updates. 
+Diva Portal
+
+https://www.diva-portal.org/smash/get/diva2%3A1105900/FULLTEXT01.pdf?utm_source=chatgpt.com
+# ================================================================================================================================
+Sensitive ACO: ants have heterogeneous pheromone sensitivity parameters. 
+Wikipedia
+
+https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms?utm_source=chatgpt.com
+# ================================================================================================================================
+Negative‑pheromone ACO: introduces repellent trails to discourage revisiting poor components.
+
+https://dipot.ulb.ac.be/dspace/bitstream/2013/298088/3/ACO-MetaHandbook_preprint.pdf?utm_source=chatgpt.com
+# ================================================================================================================================
+
+Population‑based ACO: hybridizes ACO with genetic‑algorithm‑style populations.
+
+https://www.cs.princeton.edu/courses/archive/fall24/cos597C/bib2/Ant_colony_optimization.pdf?utm_source=chatgpt.com
+# ================================================================================================================================
