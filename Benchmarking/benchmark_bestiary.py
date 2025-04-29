@@ -24,7 +24,7 @@ from niapy.algorithms.basic import *
 
 from mealpy_helper import get_models
 
-DATA_FOLDER = ""
+DATA_FOLDER = "test"
 MAX_THREADS = 32
 
 def runParallelFunction(runFunction, arguments):
