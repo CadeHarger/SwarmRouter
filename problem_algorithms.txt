@@ -1,0 +1,1350 @@
+#pragma once
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Sphere function problem id 1
+    template<typename P=BBOB>
+    class Sphere final: public P, BBOProblem<Sphere>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double>& x) override
+        {
+            auto result = 0.0;
+            for (const auto xi : x)
+                result += xi * xi;
+            return result;
+        }
+        
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            transformation::variables::subtract(x, this->optimum_.x);
+            return x;
+        }
+    public:
+        /**
+         * @brief Construct a new Sphere object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Sphere(const int instance, const int n_variables) :
+            P(1, instance, n_variables, "Sphere")
+        {
+        }
+    };
+
+    template class Sphere<BBOB>;
+}
+ <END_OF_ALGORITHM>
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    /**
+     * @brief CRTP base class for Rastrigin Problem variants
+     * 
+     * @tparam T type of the new rastrigin class
+     */
+    template<typename P=BBOB>
+    class RastriginBase: public P
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto sum1 = 0.0, sum2 = 0.0;
+
+            for (const auto xi : x)
+            {
+                sum1 += cos(2.0 * IOH_PI * xi);
+                sum2 += xi * xi;
+            }
+            if (std::isinf(sum2))
+                return sum2 ;
+
+            return 10.0 * (static_cast<double>(x.size()) - sum1) + sum2;
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            oscillate(x);
+            asymmetric(x, 0.2);
+            conditioning(x, 10.0);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Rastrigin Base object
+         * 
+         * @param problem_id the problem id
+         * @param instance the problem instance
+         * @param n_variables the problem dimension
+         * @param name the name of the problem
+         */
+        RastriginBase(const int problem_id, const int instance, const int n_variables,  const std::string& name) :
+            P(problem_id, instance, n_variables, name)
+        {
+        }
+    };
+
+    //! Rastrigin problem id 3
+    template<typename P = BBOB>
+    class Rastrigin final: public RastriginBase<P>, BBOProblem<Rastrigin>
+    {
+    public:
+        /**
+         * @brief Construct a new Rastrigin object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem 
+         */
+        Rastrigin(const int instance, const int n_variables) :
+            RastriginBase<P>(3, instance, n_variables, "Rastrigin")
+        {
+        }
+    };
+    template class Rastrigin<BBOB>;   
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "rastrigin.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! BuecheRastrigin problem id 4
+    template<typename P = BBOB>
+    class BuecheRastrigin final : public RastriginBase<P>, BBOProblem<BuecheRastrigin>
+    {
+    protected:
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            oscillate(x);
+            brs(x);
+            return x;
+        }   
+    public:
+        /**
+         * @brief Construct a new Bueche Rastrigin object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        BuecheRastrigin(const int instance, const int n_variables) :
+            RastriginBase<P>(4, instance, n_variables, "BuecheRastrigin")
+        {
+            this->enforce_bounds(this->bounds_.weight * 100);
+            for (size_t i = 0; i < this->optimum_.x.size(); i += 2)
+            {
+                this->optimum_.x[i] = fabs(this->optimum_.x[i]);
+            }
+        }
+    };
+
+    template class BuecheRastrigin<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Linear Slope problem id 5
+    template<typename P=BBOB>
+    class LinearSlope final : public P, BBOProblem<LinearSlope>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 0.0;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                result += 5.0 * fabs(this->transformation_state_.conditions[i]) - this->transformation_state_.conditions[i] *
+                (
+                    x[i] * this->optimum_.x[i] < 25.0 ? x[i] : this->optimum_.x[i]
+                );
+            return result;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Linear Slope object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        LinearSlope(const int instance, const int n_variables) :
+            P(5, instance, n_variables, "LinearSlope")
+        {
+            static const auto base = sqrt(100.0);
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                if (this->optimum_.x[i] < 0.0)
+                {
+                    this->optimum_.x[i] = -5; // constraints_.lb.at(0);
+                    this->transformation_state_.conditions[i] = -pow(base, this->transformation_state_.exponents[i]);
+                }
+                else
+                {
+                    this->optimum_.x[i] = 5; //constraints_.ub.at(0);
+                    this->transformation_state_.conditions[i] = pow(base, this->transformation_state_.exponents[i]);
+                }
+        }
+    };
+
+    template class LinearSlope<BBOB>; 
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Attractive Sector problem id = 6
+    template<typename P=BBOB>
+    class AttractiveSector final: public P, BBOProblem<AttractiveSector>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            using namespace transformation::objective;
+            auto result =  0.0 ;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                result += x[i] * x[i] * (1. + 9999.0 * (this->optimum_.x[i] * x[i] > 0.0));
+            return pow(oscillate(result), .9);
+        }
+        
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.second_transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Attractive Sector object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        AttractiveSector(const int instance, const int n_variables) :
+            P(6, instance, n_variables, "AttractiveSector")
+        {
+        
+        }
+    };  
+    template class AttractiveSector<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{   
+    //! Step ellipsiod problem id 7
+    template<typename P=BBOB>
+    class StepEllipsoid final : public P, BBOProblem<StepEllipsoid>
+    {
+    protected:
+        //! compute project of x
+        double compute_projection(const std::vector<double>& x)
+        {
+            static const auto alpha = 10.0;
+            auto x0 = 0.0;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+            {
+                this->transformation_state_.transformation_base[i] = 0.0;
+                for (auto j = 0; j < this->meta_data_.n_variables; ++j)
+                    this->transformation_state_.transformation_base[i] += this->transformation_state_.conditions[i]
+                    * this->transformation_state_.second_rotation[i][j]
+                    * (x[j] - this->optimum_.x[j]);
+
+                x0 = this->transformation_state_.transformation_base.at(0);
+
+                this->transformation_state_.transformation_base[i] = fabs(this->transformation_state_.transformation_base[i]) > .5
+                    ? floor(this->transformation_state_.transformation_base[i] + .5)
+                    : floor(alpha * this->transformation_state_.transformation_base[i] + .5) / alpha;
+            }
+            return x0;
+        }
+
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 0.0;
+            auto penalty = 0.0;
+            const auto x0 = compute_projection(x);
+
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+            {
+                const auto out_of_bounds = fabs(x[i]) - 5.0;
+                if (out_of_bounds > 0.0)
+                    penalty += out_of_bounds * out_of_bounds;
+
+                auto projection_sum = 0.0;
+                for (auto j = 0; j < this->meta_data_.n_variables; ++j)
+                    projection_sum += this->transformation_state_.first_rotation[i][j] * this->transformation_state_.transformation_base[j];
+
+                result += pow(100., this->transformation_state_.exponents[i])
+                    * projection_sum * projection_sum;
+            }
+
+            result = 0.1 * (fabs(x0) * 1.0e-4 > result ? fabs(x0) * 1.0e-4 : result);
+            return result + penalty;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Step Ellipsoid object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        StepEllipsoid(const int instance, const int n_variables) :
+            P(7, instance, n_variables, "StepEllipsoid")
+        {
+            static const auto condition = 100.;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                this->transformation_state_.conditions[i] = sqrt(pow(condition / 10.,
+                                                               this->transformation_state_.exponents[i]));
+        }
+    };
+    template class StepEllipsoid<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    /**
+     * @brief CRTP base class for Rosenbrock Problem variants
+     * 
+     * @tparam T type of the new Rosenbrock class
+     */
+    template <typename P=BBOB>
+    class RosenbrockBase : public P
+    {
+        double factor_;
+        std::vector<double> negative_one_;
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto sum1 = 0.0, sum2 = 0.0;
+
+            for (size_t i = 0; i < x.size() - 1; ++i) {
+                sum1 += pow(x[i] * x[i] - x.at(i + 1), 2.0);
+                sum2 += pow(x[i] - 1.0, 2.0);
+            }
+            return 100.0 * sum1 + sum2 ;
+        }
+        
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            scale(x, factor_);
+            subtract(x, negative_one_);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Rosenbrock Base object
+         * 
+         * @param problem_id the problem id
+         * @param instance the problem instance
+         * @param n_variables the problem dimension
+         * @param name the name of the problem
+         */
+        RosenbrockBase(const int problem_id, const int instance, const int n_variables, const std::string& name) :
+            P(problem_id, instance, n_variables, name),
+            factor_(std::max(1.0, std::sqrt(n_variables) / 8.0)), negative_one_(n_variables, -1)
+        {
+        }
+    };
+
+
+    //! Rosenbrock problem id 8
+    template<typename P = BBOB>
+    class Rosenbrock final: public RosenbrockBase<P>, BBOProblem<Rosenbrock>
+    {
+    public:
+        /**
+         * @brief Construct a new Rosenbrock object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Rosenbrock(const int instance, const int n_variables) :
+            RosenbrockBase<P>(8, instance, n_variables, "Rosenbrock")
+        {
+            for (auto& e : this->optimum_.x)
+                e *= 0.75;
+        }
+    };
+    template class Rosenbrock<BBOB>;  
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "rosenbrock.hpp"
+
+
+namespace ioh::problem::bbob
+{
+    //! Rotated Rosenbrock function 9
+    template<typename P = BBOB>
+    class RosenbrockRotated final :  public RosenbrockBase<P>, BBOProblem<RosenbrockRotated>
+    {
+    protected:
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            transformation::variables::affine(x,
+                this->transformation_state_.second_transformation_matrix, 
+                this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Rosenbrock Rotated object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        RosenbrockRotated(const int instance, const int n_variables) :
+            RosenbrockBase<P>(9, instance, n_variables, "RosenbrockRotated")
+        {
+            const auto factor = std::max(1.0, std::sqrt(n_variables) / 8.0);
+            for (auto i = 0; i < n_variables; ++i)
+            {
+                auto sum = 0.0;
+                for (auto j = 0; j < n_variables; ++j)
+                {
+                    this->transformation_state_.second_transformation_matrix[i][j] = factor 
+                        * this->transformation_state_.second_rotation[i][j];
+                    sum += this->transformation_state_.second_rotation[j][i];
+                }
+                this->transformation_state_.transformation_base[i] = 0.5;
+                this->optimum_.x[i] = sum / (2. * factor);
+            }
+        }
+    };
+
+    template class RosenbrockRotated<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Discuss function id 11
+    template<typename P=BBOB>
+    class Discus final : public P, BBOProblem<Discus>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static const auto condition = 1.0e6;
+            auto result = condition * x.at(0) * x.at(0);
+            for (auto i = 1; i < this->meta_data_.n_variables; ++i)
+                result += x[i] * x[i];
+            return result;
+        }
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix, this->transformation_state_.transformation_base);
+            oscillate(x);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Discus object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Discus(const int instance, const int n_variables) :
+            P(11, instance, n_variables, "Discus")
+        {
+        }
+    };
+
+    template class Discus<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Bent Cigar problem id = 12
+    template <typename P=BBOB>
+    class BentCigar final : public P, BBOProblem<BentCigar>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static constexpr auto condition = 1.0e6;
+            auto result = x.at(0) * x.at(0);
+            for (auto i = 1; i < this->meta_data_.n_variables; ++i)
+                result += condition * x[i] * x[i];
+            return result;
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix,
+                   this->transformation_state_.transformation_base);
+            asymmetric(x, 0.5);
+            affine(x, this->transformation_state_.transformation_matrix,
+                   this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Bent Cigar object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        BentCigar(const int instance, const int n_variables) :
+            P(12, instance, n_variables, "BentCigar")
+        {
+        }
+    };
+
+    template class BentCigar<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+//! BBOB namespace
+namespace ioh::problem::bbob
+{
+    //! Sharp ridge function problem id 13
+    template<typename P=BBOB>
+    class SharpRidge final : public P, BBOProblem<SharpRidge>
+    {
+        int n_linear_dimensions_;
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static const auto alpha = 100.0;
+
+            auto result = 0.0;
+            for (auto i = n_linear_dimensions_; i < this->meta_data_.n_variables; ++i)
+                result += x[i] * x[i];
+
+            result = alpha * sqrt(result / n_linear_dimensions_);
+            for (auto i = 0; i < n_linear_dimensions_; ++i)
+                result += x[i] * x[i] / n_linear_dimensions_;
+
+            return result;
+        }
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.second_transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Sharp Ridge object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem 
+         */
+        SharpRidge(const int instance, const int n_variables) :
+            P(13, instance, n_variables, "SharpRidge"),
+        n_linear_dimensions_(static_cast<int>(
+            ceil(this->meta_data_.n_variables <= 40 ? 1 : this->meta_data_.n_variables / 40.0)))
+        {
+        }
+    };
+
+    template class SharpRidge<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Different powers problem id 14
+    template<typename P=BBOB>
+    class DifferentPowers final : public P, BBOProblem<DifferentPowers>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto sum = 0.0;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                sum += pow(fabs(x[i]), this->transformation_state_.exponents[i]);
+            return sqrt(sum);
+        }
+        //! Variables transformation method                         
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Different Powers object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        DifferentPowers(const int instance, const int n_variables) :
+            P(14, instance, n_variables, "DifferentPowers")
+        {
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                this->transformation_state_.exponents[i] = 2.0 + 4.0 * this->transformation_state_.exponents[i];
+        }
+    };
+    template class DifferentPowers<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "rastrigin.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Rotated Rastrigin problem id 15
+    template<typename P = BBOB>
+    class RastriginRotated final : public RastriginBase<P>, BBOProblem<RastriginRotated>
+    {
+    protected:
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix, this->transformation_state_.transformation_base);
+            oscillate(x);
+            asymmetric(x, 0.2);
+            affine(x, this->transformation_state_.second_transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Rastrigin Rotated object
+         * 
+        * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        RastriginRotated(const int instance, const int n_variables) :
+            RastriginBase<P>(15, instance, n_variables, "RastriginRotated")
+        {
+        }
+    };
+
+    template class RastriginRotated<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Weierstrass problem id 16
+    template<typename P=BBOB>
+    class Weierstrass final : public P, BBOProblem<Weierstrass>
+    {
+        double f0_;
+        std::vector<double> ak_;
+        std::vector<double> bk_;
+
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 0.0;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                for (size_t j = 0; j < ak_.size(); ++j)
+                    result += cos(2 * IOH_PI * (x[i] + 0.5) * bk_[j]) * ak_[j];
+
+            result = result / static_cast<double>(this->meta_data_.n_variables) - f0_;
+            result = 10.0 * pow(result, 3.0);
+            return result;
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix, this->transformation_state_.transformation_base);
+            oscillate(x);
+            affine(x, this->transformation_state_.second_transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Weierstrass object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Weierstrass(const int instance, const int n_variables) :
+            P(16, instance, n_variables, "Weierstrass", 1 / sqrt(100.0)),
+            f0_(0.0), ak_(12), bk_(12)
+        {
+            this->enforce_bounds(this->bounds_.weight * (10.0 / n_variables));
+            
+            for (size_t i = 0; i < ak_.size(); ++i)
+            {
+                ak_[i] = pow(0.5, static_cast<double>(i));
+                bk_[i] = pow(3., static_cast<double>(i));
+                f0_ += ak_[i] * cos(2 * IOH_PI * bk_[i] * 0.5);
+            }
+        }
+    };
+    template class Weierstrass<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    /**
+     * @brief CRTP base class for Schaffers Problem variants
+     * 
+     */
+    template <typename P>
+    class Schaffers : public P
+    {
+    protected:
+        //! Condition of the problem
+        double condition_;
+
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 0.0;
+            for (size_t i = 0; i < static_cast<size_t>(this->meta_data_.n_variables) - 1; ++i)
+            {
+                const auto z = pow(x[i], 2.0) + pow(x.at(i + 1), 2.0);
+                result += pow(z, 0.25) * (1.0 + pow(sin(50.0 * pow(z, 0.1)), 2.0));
+            }
+            return pow(result / (static_cast<double>(this->meta_data_.n_variables) - 1.0), 2.0);
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.transformation_matrix,
+                   this->transformation_state_.transformation_base);
+            asymmetric(x, 0.5);
+            affine(x, this->transformation_state_.second_transformation_matrix,
+                   this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Schaffers object
+         * 
+         * @param problem_id the problem id
+         * @param instance the problem instance
+         * @param n_variables the problem dimension
+         * @param name the name of the problem
+         * @param condition condition of the problem
+         */
+        Schaffers(const int problem_id, const int instance, const int n_variables, const std::string &name,
+                  const double condition) :
+            P(problem_id, instance, n_variables, name), condition_(condition)
+        {
+            this->enforce_bounds(this->bounds_.weight * 10.0);
+
+            for (auto i = 0; i < n_variables; ++i)
+                for (auto j = 0; j < n_variables; ++j)
+                    this->transformation_state_.second_transformation_matrix[i][j] =
+                        this->transformation_state_.second_rotation[i][j]
+                        * pow(sqrt(condition), this->transformation_state_.exponents[i]);
+        }
+    };
+
+    //! Shaffers 10 problem id 17
+    template<typename P = BBOB>
+    class Schaffers10 final : public Schaffers<P>, BBOProblem<Schaffers10>
+    {
+    public:
+        /**
+         * @brief Construct a new Schaffers 1 0 object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem 
+         */
+        Schaffers10(const int instance, const int n_variables) :
+            Schaffers<P>(17, instance, n_variables, "Schaffers10", 10.0)
+        {
+        }
+    };
+    template class Schaffers10<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "schaffers10.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Shaffers 1000 problem id 18
+    template<typename P=BBOB>
+    class Schaffers1000 final: public Schaffers<P>, BBOProblem<Schaffers1000>
+    {
+    public:
+        /**
+         * @brief Construct a new Schaffers 1 0 0 0 object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem 
+         */
+        Schaffers1000(const int instance, const int n_variables) :
+            Schaffers<P>(18, instance, n_variables,  "Schaffers1000", 1000.0)
+        {
+        }
+    };
+    template class Schaffers1000<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! GriewankRosenbrock problem id 19
+    template <typename P = BBOB>
+    class GriewankRosenbrock final : public P, BBOProblem<GriewankRosenbrock>
+    {
+        std::vector<double> x_shift_;
+
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 0.0;
+            for (auto i = 0; i < this->meta_data_.n_variables - 1; ++i)
+            {
+                const auto c1 = 100.0 * pow(pow(x[i], 2.0) - x.at(static_cast<size_t>(i) + 1), 2.0);
+                const auto c2 = pow(1.0 - x[i], 2.0);
+                const auto z = c1 + c2;
+                result += z / 4000. - cos(z);
+            }
+            return 10. + 10. * result / (static_cast<double>(this->meta_data_.n_variables) - 1.);
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            affine(x, this->transformation_state_.second_rotation, this->transformation_state_.transformation_base);
+            subtract(x, x_shift_);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Griewank Rosen Brock object
+         *
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        GriewankRosenbrock(const int instance, const int n_variables) :
+            P(19, instance, n_variables, "GriewankRosenbrock"), x_shift_(n_variables, -0.5)
+        {
+            const auto factor = std::max(1., sqrt(n_variables) / 8.);
+
+            for (auto i = 0; i < n_variables; ++i)
+            {
+                auto sum = 0.0;
+                for (auto j = 0; j < n_variables; ++j)
+                {
+                    this->transformation_state_.second_rotation[i][j] *= factor;
+                    sum += this->transformation_state_.second_rotation[j][i];
+                }
+                this->optimum_.x[i] = sum / (2. * factor);
+            }
+        }
+    };
+    template class GriewankRosenbrock<BBOB>;
+} // namespace ioh::problem::bbob
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Schefel problem id 20
+    template<typename P=BBOB>
+    class Schwefel final : public P, BBOProblem<Schwefel>
+    {
+        std::vector<double> negative_offset_;
+        std::vector<double> positive_offset_;
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static const auto correction = 418.9828872724339;
+            auto result = 0.0;
+
+            auto penalty = 0.0;
+            for (const auto &xi : x)
+            {
+                const auto out_of_bounds = fabs(xi) - 500.0;
+                if (out_of_bounds > 0.0)
+                    penalty += out_of_bounds * out_of_bounds;
+
+                result += xi * sin(sqrt(fabs(xi)));
+            }
+            result = 0.01 * (penalty + correction - result / static_cast<double>(this->meta_data_.n_variables));
+            return result;
+        }
+        
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            transformation::variables::random_sign_flip(x, this->transformation_state_.seed);
+            transformation::variables::scale(x, 2);
+            transformation::variables::z_hat(x, this->optimum_.x);
+            transformation::variables::subtract(x, positive_offset_);
+            transformation::variables::conditioning(x, 10.0);
+            transformation::variables::subtract(x, negative_offset_);
+            transformation::variables::scale(x, 100);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Schwefel object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Schwefel(const int instance, const int n_variables) :
+            P(20, instance, n_variables, "Schwefel"),
+            negative_offset_(common::random::bbob2009::uniform(n_variables, this->transformation_state_.seed)),
+            positive_offset_(n_variables)
+        {
+            for (auto i = 0; i < n_variables; ++i)
+                this->optimum_.x[i] = (negative_offset_[i] < 0.5 ? -1 : 1) * 0.5 * 4.2096874637;
+
+            for (auto i = 0; i < n_variables; ++i)
+            {
+                negative_offset_[i] = -2 * fabs(this->optimum_.x[i]);
+                positive_offset_[i] = 2 * fabs(this->optimum_.x[i]);
+            }
+        }
+    };
+
+    template class Schwefel<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Gallagher Base
+    template <typename P>
+    class Gallagher : public P
+    {
+        //! Peak struct
+        struct Peak
+        {
+            double value;
+            std::vector<double> scales;
+
+            Peak(const double value, const unsigned long seed, const int n_variables, const double condition) :
+                value(value), scales(n_variables)
+            {
+                auto permutations = common::Permutation::sorted(n_variables, seed);
+                for (auto i = 0; i < n_variables; ++i)
+                    scales[i] =
+                        pow(condition,
+                            static_cast<double>(permutations[i].index) / (static_cast<double>(n_variables) - 1.) - 0.5);
+            }
+
+            static std::vector<Peak> get_peaks(const int n, const int n_variables, const unsigned long seed,
+                                               const double max_condition)
+            {
+                static const auto f0 = 1.1, f1 = 9.1, mc = 1000.;
+                const auto divisor = static_cast<double>(n) - 2.;
+
+                auto permutations = common::Permutation::sorted(n - 1, seed);
+
+                std::vector<Peak> peaks(1, {10.0, seed, n_variables, max_condition});
+                for (int i = 1; i < n; ++i)
+                    peaks.emplace_back((static_cast<double>(i) - 1.) / divisor * (f1 - f0) + f0, seed + (1000 * i),
+                                       n_variables, pow(mc, static_cast<double>(permutations[i - 1].index) / divisor));
+
+                return peaks;
+            }
+        };
+
+        std::vector<std::vector<double>> x_transformation_;
+        std::vector<Peak> peaks_;
+        double factor_;
+
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static const auto a = 0.1;
+            std::vector<double> x_transformed(this->meta_data_.n_variables);
+            auto penalty = 0.;
+
+            for (auto i = 0; i < this->meta_data_.n_variables; i++)
+            {
+                const auto out_of_bounds = fabs(x[i]) - 5.;
+                if (out_of_bounds > 0.)
+                    penalty += out_of_bounds * out_of_bounds;
+
+                x_transformed[i] = std::inner_product(x.begin(), x.end(),
+                                                      this->transformation_state_.second_rotation[i].begin(), 0.0);
+            }
+#if defined(__GNUC__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wsequence-point"
+#endif
+            auto result = 10. - std::accumulate(
+                peaks_.begin(), peaks_.end(), 0.0,
+                [&, i = 0](const double sum, const Peak &peak) mutable
+                {
+                    const auto z = std::accumulate(
+                        x_transformed.begin(), x_transformed.end(), 0.0,
+                        [&, j = 0](const double lhs, const double rhs) mutable
+                        {
+                            return lhs + peaks_[i].scales[j] * pow(rhs - x_transformation_.at(j++)[i], 2.0);
+                        });
+                    i++;
+                    return std::max(sum, peak.value * exp(factor_ * z));
+                });
+#if defined(__GNUC__)
+            #pragma GCC diagnostic pop
+#endif
+
+            if (result > 0)
+            {
+                result = std::log(result) / a;
+                result = pow(exp(result + 0.49 * (sin(result) + sin(0.79 * result))), a);
+            }
+            else if (result < 0)
+            {
+                result = std::log(-result) / a;
+                result = -pow(exp(result + 0.49 * (sin(0.55 * result) + sin(0.31 * result))), a);
+            }
+
+            return result * result + penalty;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Gallagher object
+         * 
+         * @param problem_id the id of the problem
+         * @param instance the instance of the problem
+         * @param n_variables the dimension of the problem
+         * @param name the name of the problem
+         * @param number_of_peaks the number of peaks of the problem
+         * @param b gallagher variables
+         * @param c gallagher variables
+         * @param max_condition the maximum conditioning of the problem
+         */
+        Gallagher(const int problem_id, const int instance, const int n_variables, const std::string &name,
+                  const int number_of_peaks, const double b = 10., const double c = 5.0,
+                  double max_condition = sqrt(1000.)) :
+            P(problem_id, instance, n_variables, name),
+            x_transformation_(n_variables, std::vector<double>(number_of_peaks)),
+            peaks_(Peak::get_peaks(number_of_peaks, n_variables, this->transformation_state_.seed, max_condition)),
+            factor_(-0.5 / static_cast<double>(n_variables))
+        {
+            const auto random_numbers = common::random::bbob2009::uniform(
+                static_cast<size_t>(this->meta_data_.n_variables) * number_of_peaks, this->transformation_state_.seed);
+
+            const double bound_scaler = this->box_size_ / 5.;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+            {
+                this->optimum_.x[i] = bound_scaler * (b * random_numbers[i] - c);
+                for (auto j = 0; j < number_of_peaks; ++j)
+                {
+                    for (auto k = 0; k < this->meta_data_.n_variables; ++k)
+                        x_transformation_[i][j] += this->transformation_state_.second_rotation[i][k] * (
+                            b * random_numbers.at(static_cast<size_t>(j) * this->meta_data_.n_variables + k) - c
+                        );
+                    if (j == 0)
+                        x_transformation_[i][j] *= bound_scaler;
+                }
+            }
+        }
+    };
+
+    //! Gallaher 101 problem id 21
+    template<typename P = BBOB>
+    class Gallagher101 final : public Gallagher<P>, BBOProblem<Gallagher101>
+    {
+    public:
+        /**
+         * @brief Construct a new Gallagher 1 0 1 object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Gallagher101(const int instance, const int n_variables):
+            Gallagher<P>(21, instance, n_variables, "Gallagher101", 101, 10., 5.0)
+        {
+        }
+    };
+
+    template class Gallagher101<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Gallagher 21 problem id 22
+    template<typename P = BBOB>
+    class Gallagher21 final : public Gallagher<P>, BBOProblem<Gallagher21>
+    {
+    public:
+        /**
+         * @brief Construct a new Gallagher 2 1 object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Gallagher21(const int instance, const int n_variables) :
+            Gallagher<P>(22, instance, n_variables, "Gallagher21", 21, 9.8, 4.9, 1000.)
+        {
+        }
+    };
+    template class Gallagher21<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! Katsuura problem id 23
+    template<typename P=BBOB>
+    class Katsuura final : public P, BBOProblem<Katsuura>
+    {
+        double exponent_;
+        double factor_;
+
+    protected:
+
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            auto result = 1.0;
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+            {
+                double z = 0;
+                for (size_t j = 1; j < 33; ++j)
+                    z += fabs(this->transformation_state_.exponents[j] * x[i]
+                            - floor(this->transformation_state_.exponents[j] * x[i] + 0.5))
+                        / this->transformation_state_.exponents[j];
+
+                result *= pow(1.0 + (static_cast<double>(i) + 1) * z, exponent_);
+            }
+            result = factor_ * (-1. + result);
+            return result;
+        }
+
+        //! Variables transformation method
+        std::vector<double> transform_variables(std::vector<double> x) override
+        {
+            using namespace transformation::variables;
+            subtract(x, this->optimum_.x);
+            affine(x, this->transformation_state_.second_transformation_matrix, this->transformation_state_.transformation_base);
+            return x;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Katsuura object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        Katsuura(const int instance, const int n_variables) :
+            P(23, instance, n_variables, "Katsuura", sqrt(100.0)),
+            exponent_(10. / pow(static_cast<double>(this->meta_data_.n_variables), 1.2)),
+            factor_(10. / static_cast<double>(this->meta_data_.n_variables) / static_cast<double>(this->meta_data_.n_variables))
+        {
+            this->enforce_bounds(this->bounds_.weight * 1.);
+            
+            this->transformation_state_.exponents.resize(33);
+            for (auto i = 1; i < 33; ++i)
+                this->transformation_state_.exponents[i] = pow(2., static_cast<double>(i));
+        }
+    };
+    template class Katsuura<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
+#pragma once
+
+#include "bbob_problem.hpp"
+
+namespace ioh::problem::bbob
+{
+    //! LunacekBiRastrigin problem id 24
+    template<typename P=BBOB>
+    class LunacekBiRastrigin final : public P, BBOProblem<LunacekBiRastrigin>
+    {
+    protected:
+        //! Evaluation method
+        double evaluate(const std::vector<double> &x) override
+        {
+            static const auto mu0 = 2.5;
+            static const auto d = 1.;
+            const auto double_n = static_cast<double>(this->meta_data_.n_variables);
+            const auto s = 1. - 0.5 / (sqrt(double_n + 20) - 4.1);
+            const auto mu1 = -sqrt((mu0 * mu0 - d) / s);
+
+            auto sum1 = 0., sum2 = 0., sum3 = 0., penalty = 0.;
+
+            std::vector<double> transformation_base(this->meta_data_.n_variables);
+            std::vector<double> x_hat(this->meta_data_.n_variables);
+            std::vector<double> z(this->meta_data_.n_variables);
+
+
+            /* x_hat */
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                x_hat[i] = this->optimum_.x[i] > 0. ? 2. * x[i] : 2. * x[i] * -1;
+             
+            /* affine transformation */
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+                for (auto j = 0; j < this->meta_data_.n_variables; ++j)
+                    transformation_base[i] += this->transformation_state_.conditions[i]
+                        * this->transformation_state_.second_rotation[i][j] * (x_hat[j] - mu0);
+
+            for (auto i = 0; i < this->meta_data_.n_variables; ++i)
+            {
+                for (auto j = 0; j < this->meta_data_.n_variables; ++j)
+                    z[i] += this->transformation_state_.first_rotation[i][j] * transformation_base[j];
+
+                const auto out_of_bounds = fabs(x[i]) - 5.0;
+                if (out_of_bounds > 0.0)
+                    penalty += out_of_bounds * out_of_bounds;
+
+                sum1 += (x_hat[i] - mu0) * (x_hat[i] - mu0);
+                sum2 += (x_hat[i] - mu1) * (x_hat[i] - mu1);
+                sum3 += cos(2 * IOH_PI * z[i]);
+            }
+            return std::min(sum1, d * double_n + s * sum2) + 10. * (double_n - sum3) + 1e4 * penalty;
+        }
+
+    public:
+        /**
+         * @brief Construct a new Lunacek Bi Rastrigin object
+         * 
+         * @param instance instance id
+         * @param n_variables the dimension of the problem
+         */
+        LunacekBiRastrigin(const int instance, const int n_variables) :
+            P(24, instance, n_variables, "LunacekBiRastrigin")
+        {
+            const auto random_normal = common::random::bbob2009::normal(n_variables, this->transformation_state_.seed);
+            for (auto i = 0; i < n_variables; ++i)
+            {
+                this->optimum_.x[i] = random_normal[i] < 0.0 ? 0.5 * 2.5 * -1 : 0.5 * 2.5;
+                this->transformation_state_.conditions[i] = pow(sqrt(100.), this->transformation_state_.exponents[i]);
+            }
+        }
+    };
+
+    template class LunacekBiRastrigin<BBOB>;
+}
+
+ <END_OF_ALGORITHM>
