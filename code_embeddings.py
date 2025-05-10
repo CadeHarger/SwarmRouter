@@ -11,25 +11,26 @@ def get_solution_algorithms():
 
     for folder in folders:
         for file in os.listdir(f"{path}/{folder}"):
-            if file.endswith(".py"):
+            if file.endswith(".py") and '__' not in file:
                 with open(f"{path}/{folder}/{file}", "r") as file:
                     lines = file.readlines()
-                    start = None
-                    name = None
+                    classlines = []
                     for i, line in enumerate(lines):
-                        if "(Optimizer):" in line and "class" in line:
-                            name = line.split(" ")[1].split("(")[0]
-                            if start is None:
-                                start = i
-                            else: 
-                                algorithms[name] = lines[start:i]
-                    if start is not None:
-                        algorithms[name] = lines[start:]
+                        if "class " in line and "):" in line:
+                            classlines.append(i)
+                    if len(classlines) == 0:
+                        continue
+                    for i in range(len(classlines) - 1):
+                        name = lines[classlines[i]].split("class ")[1].split("(")[0]
+                        algorithms[name] = ''.join(lines[classlines[i]:classlines[i+1]])
+                    # Add the last class
+                    name = lines[classlines[-1]].split("class ")[1].split("(")[0]
+                    algorithms[name] = ''.join(lines[classlines[-1]:])
 
     print(len(algorithms))
-    # Convert list of strings to single string
-    for alg in algorithms.items():
-        algorithms[alg[0]] = ''.join(alg[1])
+
+    # filter empty strings
+    algorithms = {k: v for k, v in algorithms.items() if len(v.strip()) > 1}
 
     return algorithms
 
@@ -100,9 +101,9 @@ if __name__ == "__main__":
     sorted_algorithms = dict(sorted(algorithms.items()))
 
     names, implementations = zip(*sorted_algorithms.items())
-    
     save_algorithms(implementations, "solution_algorithms")
     
 
     problem_algorithms = get_problem_algorithms()
     save_algorithms(problem_algorithms, "problem_algorithms")
+
